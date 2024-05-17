@@ -1,5 +1,6 @@
 #include <iostream>
 #include <sstream>
+#include <memory>
 #include "SVGElements.hpp"
 #include "external/tinyxml2/tinyxml2.h"
 
@@ -24,7 +25,7 @@ namespace svg
         }
     }
 
-    SVGElement* parseElement(XMLElement* child, std::map<std::string, SVGElement *> &id_map)
+    SVGElement* parseElement(XMLElement* child, std::map<std::string, SVGElement*> &id_map)
     {
         const string elem_type = child->Name();
         SVGElement *element = nullptr;
@@ -152,7 +153,7 @@ namespace svg
         dimensions.x = xml_elem->IntAttribute("width");
         dimensions.y = xml_elem->IntAttribute("height");
 
-        std::map<std::string, SVGElement *> id_map;
+        std::map<std::string, SVGElement*> id_map;
 
         for (XMLElement *child = xml_elem->FirstChildElement(); child != nullptr; child = child->NextSiblingElement())
         {
