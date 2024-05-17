@@ -11,6 +11,10 @@
 
 namespace svg
 {
+    // Custom clamp function declaration
+    template <typename T>
+    T clamp(const T& value, const T& low, const T& high);
+
     class SVGElement
     {
     public:
@@ -74,7 +78,7 @@ namespace svg
         Polygon(const Color &fill, const std::vector<Point> &points);
         void draw(PNGImage &img) const override;
 
-    private:
+    protected:
         Color fill;
         std::vector<Point> points;
     };
@@ -83,6 +87,7 @@ namespace svg
     {
     public:
         Rect(const Color &fill, const Point &topLeft, int width, int height);
+        void draw(PNGImage &img) const override;
     };
 
     class Group : public SVGElement
@@ -106,4 +111,5 @@ namespace svg
         const SVGElement *ref;
     };
 }
+
 #endif
