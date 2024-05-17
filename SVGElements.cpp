@@ -2,10 +2,17 @@
 #include <sstream>
 #include <cmath>
 #include <iostream>
-#include <memory>
+#include <algorithm>
 
 namespace svg
 {
+    // Custom clamp function implementation
+    template <typename T>
+    T clamp(const T& value, const T& low, const T& high)
+    {
+        return std::max(low, std::min(value, high));
+    }
+
     SVGElement::SVGElement() {}
     SVGElement::~SVGElement() {}
 
@@ -16,7 +23,7 @@ namespace svg
 
     void SVGElement::applyTransformations(Point &point) const
     {
-        //std::cout << "Applying transformations to point: (" << point.x << ", " << point.y << ")\n";
+        std::cout << "Applying transformations to point: (" << point.x << ", " << point.y << ")\n";
         for (const auto &trans : transformations)
         {
             std::istringstream ss(trans);
@@ -26,7 +33,7 @@ namespace svg
             {
                 float dx, dy;
                 ss >> dx >> dy;
-                //std::cout << "Applying translate: dx=" << dx << ", dy=" << dy << "\n";
+                std::cout << "Applying translate: dx=" << dx << ", dy=" << dy << "\n";
                 point = point.translate(Point{static_cast<int>(dx), static_cast<int>(dy)});
             }
             else if (type == "rotate")
@@ -38,7 +45,7 @@ namespace svg
                     ss.ignore();
                     ss >> cx >> cy;
                 }
-                //std::cout << "Applying rotate: angle=" << angle << ", cx=" << cx << ", cy=" << cy << "\n";
+                std::cout << "Applying rotate: angle=" << angle << ", cx=" << cx << ", cy=" << cy << "\n";
                 point = point.rotate(Point{static_cast<int>(cx), static_cast<int>(cy)}, static_cast<int>(angle));
             }
             else if (type == "scale")
@@ -50,11 +57,11 @@ namespace svg
                     ss.ignore();
                     ss >> sy;
                 }
-                //std::cout << "Applying scale: sx=" << sx << ", sy=" << sy << "\n";
+                std::cout << "Applying scale: sx=" << sx << ", sy=" << sy << "\n";
                 point = point.scale(Point{0, 0}, static_cast<int>(sx));
             }
         }
-        //std::cout << "Transformed point: (" << point.x << ", " << point.y << ")\n";
+        std::cout << "Transformed point: (" << point.x << ", " << point.y << ")\n";
     }
 
     // Ellipse
@@ -67,7 +74,16 @@ namespace svg
     {
         Point transformed_center = center;
         applyTransformations(transformed_center);
-        img.draw_ellipse(transformed_center, radius, fill);
+        std::cout << "Drawing ellipse at (" << transformed_center.x << ", " << transformed_center.y << ")\n";
+        if (transformed_center.x >= 0 && transformed_center.x < img.width() &&
+            transformed_center.y >= 0 && transformed_center.y < img.height())
+        {
+            img.draw_ellipse(transformed_center, radius, fill);
+        }
+        else
+        {
+            std::cerr << "Error: Transformed ellipse center is out of bounds!\n";
+        }
     }
 
     // Circle
@@ -90,6 +106,11 @@ namespace svg
             Point end = points[i + 1];
             applyTransformations(start);
             applyTransformations(end);
+            std::cout << "Drawing line from (" << start.x << ", " << start.y << ") to (" << end.x << ", " << end.y << ")\n";
+            start.x = clamp(start.x, 0, img.width() - 1);
+            start.y = clamp(start.y, 0, img.height() - 1);
+            end.x = clamp(end.x, 0, img.width() - 1);
+            end.y = clamp(end.y, 0, img.height() - 1);
             img.draw_line(start, end, stroke);
         }
     }
@@ -106,6 +127,11 @@ namespace svg
         Point transformed_end = end;
         applyTransformations(transformed_start);
         applyTransformations(transformed_end);
+        std::cout << "Drawing line from (" << transformed_start.x << ", " << transformed_start.y << ") to (" << transformed_end.x << ", " << transformed_end.y << ")\n";
+        transformed_start.x = clamp(transformed_start.x, 0, img.width() - 1);
+        transformed_start.y = clamp(transformed_start.y, 0, img.height() - 1);
+        transformed_end.x = clamp(transformed_end.x, 0, img.width() - 1);
+        transformed_end.y = clamp(transformed_end.y, 0, img.height() - 1);
         img.draw_line(transformed_start, transformed_end, stroke);
     }
 
@@ -118,17 +144,33 @@ namespace svg
     void Polygon::draw(PNGImage &img) const
     {
         std::vector<Point> transformed_points = points;
+        bool out_of_bounds = false;
         for (auto &point : transformed_points)
         {
             applyTransformations(point);
+            if (point.x < 0 || point.x >= img.width() || point.y < 0 || point.y >= img.height())
+            {
+                std::cerr << "Error: Transformed polygon point (" << point.x << ", " << point.y << ") is out of bounds!\n";
+                out_of_bounds = true;
+            }
+            point.x = clamp(point.x, 0, img.width() - 1);
+            point.y = clamp(point.y, 0, img.height() - 1);
         }
-        img.draw_polygon(transformed_points, fill);
+        if (!out_of_bounds)
+        {
+            img.draw_polygon(transformed_points, fill);
+        }
     }
 
     // Rect
     Rect::Rect(const Color &fill, const Point &topLeft, int width, int height)
         : Polygon(fill, {topLeft, topLeft.translate({width, 0}), topLeft.translate({width, height}), topLeft.translate({0, height})})
     {
+    }
+
+    void Rect::draw(PNGImage &img) const
+    {
+        Polygon::draw(img); // Call Polygon's draw method directly
     }
 
     // Group
@@ -138,7 +180,7 @@ namespace svg
         this->transformations = transformations;
     }
 
-    Group::~Group() // Add destructor to delete elements
+    Group::~Group()
     {
         for (auto element : elements)
         {
