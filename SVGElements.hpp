@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <memory>
 
 namespace svg
 {
@@ -17,7 +18,8 @@ namespace svg
         virtual ~SVGElement();
         virtual void draw(PNGImage &img) const = 0;
         void setTransformations(const std::vector<std::string> &trans);
-        
+        void applyTransformations(Point &point) const;
+
     protected:
         std::vector<std::string> transformations;
     };
@@ -88,6 +90,7 @@ namespace svg
     public:
         Group(const std::vector<SVGElement *> &elements, const std::vector<std::string> &transformations);
         void draw(PNGImage &img) const override;
+        ~Group(); // Add destructor to delete elements
 
     private:
         std::vector<SVGElement *> elements;
