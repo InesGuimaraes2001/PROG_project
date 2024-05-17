@@ -1,6 +1,8 @@
 #include "SVGElements.hpp"
 #include <sstream>
 #include <cmath>
+#include <iostream>
+#include <memory>
 
 namespace svg
 {
@@ -12,6 +14,49 @@ namespace svg
         transformations = trans;
     }
 
+    void SVGElement::applyTransformations(Point &point) const
+    {
+        //std::cout << "Applying transformations to point: (" << point.x << ", " << point.y << ")\n";
+        for (const auto &trans : transformations)
+        {
+            std::istringstream ss(trans);
+            std::string type;
+            ss >> type;
+            if (type == "translate")
+            {
+                float dx, dy;
+                ss >> dx >> dy;
+                //std::cout << "Applying translate: dx=" << dx << ", dy=" << dy << "\n";
+                point = point.translate(Point{static_cast<int>(dx), static_cast<int>(dy)});
+            }
+            else if (type == "rotate")
+            {
+                float angle, cx = 0, cy = 0;
+                ss >> angle;
+                if (ss.peek() == ',')
+                {
+                    ss.ignore();
+                    ss >> cx >> cy;
+                }
+                //std::cout << "Applying rotate: angle=" << angle << ", cx=" << cx << ", cy=" << cy << "\n";
+                point = point.rotate(Point{static_cast<int>(cx), static_cast<int>(cy)}, static_cast<int>(angle));
+            }
+            else if (type == "scale")
+            {
+                float sx, sy = 1;
+                ss >> sx;
+                if (ss.peek() == ',')
+                {
+                    ss.ignore();
+                    ss >> sy;
+                }
+                //std::cout << "Applying scale: sx=" << sx << ", sy=" << sy << "\n";
+                point = point.scale(Point{0, 0}, static_cast<int>(sx));
+            }
+        }
+        //std::cout << "Transformed point: (" << point.x << ", " << point.y << ")\n";
+    }
+
     // Ellipse
     Ellipse::Ellipse(const Color &fill, const Point &center, const Point &radius)
         : fill(fill), center(center), radius(radius)
@@ -20,7 +65,9 @@ namespace svg
 
     void Ellipse::draw(PNGImage &img) const
     {
-        img.draw_ellipse(center, radius, fill);
+        Point transformed_center = center;
+        applyTransformations(transformed_center);
+        img.draw_ellipse(transformed_center, radius, fill);
     }
 
     // Circle
@@ -39,7 +86,11 @@ namespace svg
     {
         for (size_t i = 0; i < points.size() - 1; i++)
         {
-            img.draw_line(points[i], points[i + 1], stroke);
+            Point start = points[i];
+            Point end = points[i + 1];
+            applyTransformations(start);
+            applyTransformations(end);
+            img.draw_line(start, end, stroke);
         }
     }
 
@@ -51,7 +102,11 @@ namespace svg
 
     void Line::draw(PNGImage &img) const
     {
-        img.draw_line(start, end, stroke);
+        Point transformed_start = start;
+        Point transformed_end = end;
+        applyTransformations(transformed_start);
+        applyTransformations(transformed_end);
+        img.draw_line(transformed_start, transformed_end, stroke);
     }
 
     // Polygon
@@ -62,7 +117,12 @@ namespace svg
 
     void Polygon::draw(PNGImage &img) const
     {
-        img.draw_polygon(points, fill);
+        std::vector<Point> transformed_points = points;
+        for (auto &point : transformed_points)
+        {
+            applyTransformations(point);
+        }
+        img.draw_polygon(transformed_points, fill);
     }
 
     // Rect
@@ -76,6 +136,14 @@ namespace svg
         : elements(elements)
     {
         this->transformations = transformations;
+    }
+
+    Group::~Group() // Add destructor to delete elements
+    {
+        for (auto element : elements)
+        {
+            delete element;
+        }
     }
 
     void Group::draw(PNGImage &img) const
